@@ -1,0 +1,37 @@
+{
+  "employees": [
+    "Shubham Jain",
+    "Cheshta Verma",
+    "Gurdeep Singh",
+    "Muskan Yadav",
+    "Navya Srivastava",
+    "Harsh Koushk",
+    "Mohd. Bilal",
+    "Shumail Hussain",
+    "Azad Hussain",
+    "Aman Pandey",
+    "Aditya Kumar",
+    "Parth Vaghasiya",
+    "Ravindra Nakrani",
+    "Shrushti Navadiya",
+    "Shivani Raghav"
+  ],
+  "attendance": {
+    "Shubham Jain__2026-3-17": "present",
+    "Cheshta Verma__2026-3-17": "present",
+    "Gurdeep Singh__2026-3-17": "present",
+    "Muskan Yadav__2026-3-17": "present",
+    "Navya Srivastava__2026-3-17": "present",
+    "Harsh Koushk__2026-3-17": "present",
+    "Mohd. Bilal__2026-3-17": "present",
+    "Shumail Hussain__2026-3-17": "present",
+    "Azad Hussain__2026-3-17": "present",
+    "Aman Pandey__2026-3-17": "present",
+    "Aditya Kumar__2026-3-17": "present",
+    "Parth Vaghasiya__2026-3-17": "present",
+    "Ravindra Nakrani__2026-3-17": "present",
+    "Shrushti Navadiya__2026-3-17": "present",
+    "Shivani Raghav__2026-3-17": "present"
+  },
+  "scrum": {}
+}
