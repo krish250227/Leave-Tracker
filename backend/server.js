@@ -13,6 +13,7 @@ let db;
 
 async function getDb() {
   if (!db) {
+    if (!MONGO_URI) throw new Error("MONGO_URI env var not set");
     const client = new MongoClient(MONGO_URI);
     await client.connect();
     db = client.db("leavetracker");
@@ -24,6 +25,10 @@ const USERS = [
   { email: "harsh.koushk@mobifly.tech", password: "admin123", name: "Harsh Koushk" },
   { email: "user@example.com", password: "user123", name: "User" },
 ];
+
+app.get("/health", (req, res) => {
+  res.json({ ok: true, mongo: !!MONGO_URI });
+});
 
 app.post("/login", (req, res) => {
   const { email, password } = req.body;
