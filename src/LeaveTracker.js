@@ -89,7 +89,7 @@ export default function LeaveTracker({ onSwitchView, isViewOnly = false, onLogou
       });
     }
     return { present, leave, wfh, flagged };
-  }, [entries, employees, isCurrentMonth, empLeave, allDayNums, key, t.day]);
+  }, [entries, employees, isCurrentMonth, empLeave, key, t.day]);
 
   const modalEmployees = useMemo(() => {
     if (!modalFilter) return [];
