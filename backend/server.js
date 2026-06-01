@@ -39,9 +39,13 @@ app.post("/login", (req, res) => {
 });
 
 app.get("/employees", async (req, res) => {
-  const db = await getDb();
-  const doc = await db.collection("employees").findOne({ _id: "list" });
-  res.json(doc?.employees || []);
+  try {
+    const db = await getDb();
+    const doc = await db.collection("employees").findOne({ _id: "list" });
+    res.json(doc?.employees || []);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post("/employees", async (req, res) => {
