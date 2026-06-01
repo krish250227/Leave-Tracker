@@ -14,7 +14,10 @@ let db;
 async function getDb() {
   if (!db) {
     if (!MONGO_URI) throw new Error("MONGO_URI env var not set");
-    const client = new MongoClient(MONGO_URI);
+    const client = new MongoClient(MONGO_URI, {
+      tls: true,
+      serverSelectionTimeoutMS: 10000,
+    });
     await client.connect();
     db = client.db("leavetracker");
   }
