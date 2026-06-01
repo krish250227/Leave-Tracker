@@ -1,98 +1,112 @@
 const express = require("express");
 const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
+const { MongoClient } = require("mongodb");
 
 const app = express();
-const PORT = 4000;
-const DATA_FILE = path.join(__dirname, "data.json");
+const PORT = process.env.PORT || 4000;
+const MONGO_URI = process.env.MONGO_URI;
 
 app.use(cors());
 app.use(express.json());
 
-function readData() {
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
-}
+let db;
 
-function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
-
-// GET /employees — list all employees
-app.get("/employees", (req, res) => {
-  const { employees } = readData();
-  res.json(employees);
-});
-
-// GET /attendance — get all attendance entries (optionally filter by ?year=&month=)
-app.get("/attendance", (req, res) => {
-  const { attendance } = readData();
-  const { year, month } = req.query;
-
-  if (year && month) {
-    const prefix = `__${year}-${month}-`;
-    const filtered = Object.fromEntries(
-      Object.entries(attendance).filter(([k]) => k.includes(prefix))
-    );
-    return res.json(filtered);
+async function getDb() {
+  if (!db) {
+    const client = new MongoClient(MONGO_URI);
+    await client.connect();
+    db = client.db("leavetracker");
   }
+  return db;
+}
 
-  res.json(attendance);
+const USERS = [
+  { email: "harsh.koushk@mobifly.tech", password: "admin123", name: "Harsh Koushk" },
+  { email: "user@example.com", password: "user123", name: "User" },
+];
+
+app.post("/login", (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
+  const user = USERS.find(u => u.email === email && u.password === password);
+  if (user) res.json({ ok: true, user: { email: user.email, name: user.name } });
+  else res.status(401).json({ error: "Invalid email or password" });
 });
 
-// PUT /attendance — set a single entry { key, status }
-// key format: "EmployeeName__year-month-day"
-// status: one of the STATUS_CONFIG keys, or null to clear
-app.put("/attendance", (req, res) => {
+app.get("/employees", async (req, res) => {
+  const db = await getDb();
+  const doc = await db.collection("employees").findOne({ _id: "list" });
+  res.json(doc?.employees || []);
+});
+
+app.post("/employees", async (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: "name is required" });
+  const trimmed = name.trim();
+  const db = await getDb();
+  const doc = await db.collection("employees").findOne({ _id: "list" });
+  const employees = doc?.employees || [];
+  if (employees.includes(trimmed)) return res.status(409).json({ error: "already exists" });
+  await db.collection("employees").updateOne(
+    { _id: "list" },
+    { $push: { employees: trimmed } },
+    { upsert: true }
+  );
+  res.json({ ok: true });
+});
+
+app.delete("/employees/:name", async (req, res) => {
+  const name = decodeURIComponent(req.params.name);
+  const db = await getDb();
+  await db.collection("employees").updateOne(
+    { _id: "list" },
+    { $pull: { employees: name } }
+  );
+  res.json({ ok: true });
+});
+
+app.get("/attendance", async (req, res) => {
+  const { year, month } = req.query;
+  const db = await getDb();
+  const query = year && month ? { key: { $regex: `__${year}-${month}-` } } : {};
+  const docs = await db.collection("attendance").find(query).toArray();
+  const result = {};
+  docs.forEach(d => { result[d.key] = d.status; });
+  res.json(result);
+});
+
+app.put("/attendance", async (req, res) => {
   const { key, status } = req.body;
   if (!key) return res.status(400).json({ error: "key is required" });
-
-  const data = readData();
-
+  const db = await getDb();
   if (status === null || status === undefined) {
-    delete data.attendance[key];
+    await db.collection("attendance").deleteOne({ key });
   } else {
-    data.attendance[key] = status;
+    await db.collection("attendance").updateOne({ key }, { $set: { key, status } }, { upsert: true });
   }
-
-  writeData(data);
   res.json({ ok: true });
 });
 
-// DELETE /attendance/:key — clear a single entry
-app.delete("/attendance/:key", (req, res) => {
-  const data = readData();
-  delete data.attendance[decodeURIComponent(req.params.key)];
-  writeData(data);
-  res.json({ ok: true });
-});
-
-// GET /scrum — get scrum attendance (optionally filter by ?year=&month=)
-app.get("/scrum", (req, res) => {
-  const data = readData();
-  const scrum = data.scrum || {};
+app.get("/scrum", async (req, res) => {
   const { year, month } = req.query;
-  if (year && month) {
-    const prefix = `__${year}-${month}-`;
-    return res.json(Object.fromEntries(Object.entries(scrum).filter(([k]) => k.includes(prefix))));
-  }
-  res.json(scrum);
+  const db = await getDb();
+  const query = year && month ? { key: { $regex: `__${year}-${month}-` } } : {};
+  const docs = await db.collection("scrum").find(query).toArray();
+  const result = {};
+  docs.forEach(d => { result[d.key] = d.status; });
+  res.json(result);
 });
 
-// PUT /scrum — set a scrum entry { key, status }
-// key format: "EmployeeName__year-month-day"
-// status: "present" | "absent" | null
-app.put("/scrum", (req, res) => {
+app.put("/scrum", async (req, res) => {
   const { key, status } = req.body;
   if (!key) return res.status(400).json({ error: "key is required" });
-  const data = readData();
-  if (!data.scrum) data.scrum = {};
-  if (status === null || status === undefined) delete data.scrum[key];
-  else data.scrum[key] = status;
-  writeData(data);
+  const db = await getDb();
+  if (status === null || status === undefined) {
+    await db.collection("scrum").deleteOne({ key });
+  } else {
+    await db.collection("scrum").updateOne({ key }, { $set: { key, status } }, { upsert: true });
+  }
   res.json({ ok: true });
 });
 
-app.listen(PORT, () => {
-  console.log(`Leave Tracker API running at http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
