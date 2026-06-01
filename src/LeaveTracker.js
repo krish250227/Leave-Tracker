@@ -75,7 +75,7 @@ export default function LeaveTracker({ onSwitchView, isViewOnly = false, onLogou
       totals[emp] = leave;
     });
     return totals;
-  }, [entries, viewYear, viewMonth, days, employees, allDayNums, key]);
+  }, [entries, employees, allDayNums, key]);
 
   const totalStats = useMemo(() => {
     let present = 0, leave = 0, wfh = 0, flagged = 0;
@@ -89,7 +89,7 @@ export default function LeaveTracker({ onSwitchView, isViewOnly = false, onLogou
       });
     }
     return { present, leave, wfh, flagged };
-  }, [entries, employees, isCurrentMonth, empLeave, allDayNums, key]);
+  }, [entries, employees, isCurrentMonth, empLeave, allDayNums, key, t.day]);
 
   const modalEmployees = useMemo(() => {
     if (!modalFilter) return [];

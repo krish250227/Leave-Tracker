@@ -102,7 +102,7 @@ export default function ScrumTracker({ onSwitchView, isViewOnly = false, onLogou
       stats[emp] = { present, absent };
     });
     return stats;
-  }, [entries, viewYear, viewMonth, employees, allDayNums, key]);
+  }, [entries, employees, allDayNums, key]);
 
   const totalStats = useMemo(() => {
     let present = 0, absent = 0;
