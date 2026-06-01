@@ -5,8 +5,8 @@ const API = "http://localhost:4000";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 const SCRUM_STATUS = {
-  present: { label: "Present", short: "P", bg: "#1a3a2a", text: "#4ade80" },
-  absent:  { label: "Absent",  short: "A", bg: "#3a1a1a", text: "#f87171" },
+  present: { label: "Present", short: "P", bg: "#d4edda", text: "#155724" },
+  absent:  { label: "Absent",  short: "A", bg: "#f8d7da", text: "#721c24" },
 };
 
 function getDaysInMonth(year, month) {
@@ -25,15 +25,17 @@ function stringToColor(str) {
   return colors[Math.abs(h) % colors.length];
 }
 
-export default function ScrumTracker({ onSwitchView }) {
+export default function ScrumTracker({ onSwitchView, isViewOnly = false, onLogout }) {
   const t = today();
   const [viewYear, setViewYear] = useState(t.year);
   const [viewMonth, setViewMonth] = useState(t.month);
   const [showFullMonth, setShowFullMonth] = useState(false);
+  const [timePeriod, setTimePeriod] = useState("month");
   const [entries, setEntries] = useState({});
   const [employees, setEmployees] = useState([]);
   const [selectedCell, setSelectedCell] = useState(null);
   const [filterEmp, setFilterEmp] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,11 +53,23 @@ export default function ScrumTracker({ onSwitchView }) {
   const days = getDaysInMonth(viewYear, viewMonth);
   const allDayNums = Array.from({ length: days }, (_, i) => i + 1);
   const isCurrentMonth = viewYear === t.year && viewMonth === t.month;
-  const dayNums = (!showFullMonth && isCurrentMonth)
-    ? allDayNums.filter(d => d >= t.day)
-    : allDayNums;
+  
+  let dayNums = allDayNums;
+  if (timePeriod === "week" && isCurrentMonth) {
+    const currentDayOfWeek = new Date(t.year, t.month, t.day).getDay();
+    const weekStart = t.day - currentDayOfWeek;
+    const weekEnd = weekStart + 6;
+    dayNums = allDayNums.filter(d => d >= Math.max(1, weekStart) && d <= Math.min(days, weekEnd));
+  } else if (timePeriod === "month") {
+    dayNums = (!showFullMonth && isCurrentMonth)
+      ? allDayNums.filter(d => d >= t.day)
+      : allDayNums;
+  }
 
   const visibleEmployees = filterEmp === "all" ? employees : [filterEmp];
+  const filteredEmployees = searchQuery
+    ? visibleEmployees.filter(emp => emp.toLowerCase().includes(searchQuery.toLowerCase()))
+    : visibleEmployees;
 
   const key = useCallback(
     (emp, day) => `${emp}__${viewYear}-${viewMonth}-${day}`,
@@ -88,7 +102,7 @@ export default function ScrumTracker({ onSwitchView }) {
       stats[emp] = { present, absent };
     });
     return stats;
-  }, [entries, viewYear, viewMonth, employees]);
+  }, [entries, viewYear, viewMonth, employees, allDayNums, key]);
 
   const totalStats = useMemo(() => {
     let present = 0, absent = 0;
@@ -114,6 +128,13 @@ export default function ScrumTracker({ onSwitchView }) {
     else setViewMonth(m => m + 1);
   };
 
+  const handlePeriodChange = (period) => {
+    setTimePeriod(period);
+    setShowFullMonth(false);
+    setViewYear(t.year);
+    setViewMonth(t.month);
+  };
+
   return (
     <div style={styles.root}>
       <div style={styles.noise} />
@@ -126,8 +147,8 @@ export default function ScrumTracker({ onSwitchView }) {
         </div>
         <div style={styles.statsRow}>
           {[
-            { label: "Present", val: totalStats.present, color: "#4ade80" },
-            { label: "Absent",  val: totalStats.absent,  color: "#f87171" },
+            { label: "Present", val: totalStats.present, color: "#28a745" },
+            { label: "Absent",  val: totalStats.absent,  color: "#dc3545" },
           ].map(s => (
             <div key={s.label} style={styles.statCard}>
               <div style={{ ...styles.statVal, color: s.color }}>{s.val}</div>
@@ -139,6 +160,12 @@ export default function ScrumTracker({ onSwitchView }) {
 
       {/* Controls */}
       <div style={styles.controls}>
+        <select id="scrum-time-period" style={styles.select} value={timePeriod} onChange={e => handlePeriodChange(e.target.value)}>
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+          <option value="year">This Year</option>
+        </select>
+
         <div style={styles.monthNav}>
           <button style={styles.navBtn} onClick={prevMonth}>‹</button>
           <span style={styles.monthLabel}>{MONTHS[viewMonth]} {viewYear}</span>
@@ -148,7 +175,17 @@ export default function ScrumTracker({ onSwitchView }) {
           <option value="all">All Employees</option>
           {employees.map(e => <option key={e} value={e}>{e}</option>)}
         </select>
+        <input
+          type="text"
+          placeholder="Search employees..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          style={styles.searchInput}
+        />
         <button style={styles.switchBtn} onClick={onSwitchView}>📋 Leave</button>
+        <button style={{ ...styles.switchBtn, marginLeft: "auto" }} onClick={onLogout}>
+          {isViewOnly ? "🔓 Login" : "🚪 Logout"}
+        </button>
       </div>
 
       {/* Legend */}
@@ -156,7 +193,7 @@ export default function ScrumTracker({ onSwitchView }) {
         {Object.entries(SCRUM_STATUS).map(([k, v]) => (
           <span key={k} style={{ ...styles.legendItem, background: v.bg, color: v.text }}>{v.short} — {v.label}</span>
         ))}
-        <span style={{ color: "#7a7a9a", fontSize: 11 }}>· click a cell to toggle</span>
+        <span style={{ color: "#666", fontSize: 11 }}>· click a cell to toggle</span>
       </div>
 
       {loading && <div style={styles.loadingBar} />}
@@ -166,12 +203,12 @@ export default function ScrumTracker({ onSwitchView }) {
         <table style={styles.table}>
           <thead>
             <tr>
-              <th style={{ ...styles.th, ...styles.empCol, position: "sticky", left: 0, zIndex: 3, background: "#20203a" }}>Employee</th>
+              <th style={{ ...styles.th, ...styles.empCol, position: "sticky", left: 0, zIndex: 3, background: "#fafafa" }}>Employee</th>
               {dayNums.map(d => (
                 <th key={d} style={{
                   ...styles.th, ...styles.dayCol,
-                  ...(isWeekend(d) ? { background: "#2a2a48" } : {}),
-                  ...(d === t.day && isCurrentMonth ? { color: "#f59e0b", background: "#2e2a1a" } : {}),
+                  ...(isWeekend(d) ? { background: "#f0f0f0" } : {}),
+                  ...(d === t.day && isCurrentMonth ? { color: "#f59e0b", background: "#fff8e1" } : {}),
                 }}>
                   <div style={{ fontSize: 9, color: "#7a7a9a", marginBottom: 1 }}>{dayLabel(d)}</div>
                   {d}
@@ -181,11 +218,11 @@ export default function ScrumTracker({ onSwitchView }) {
             </tr>
           </thead>
           <tbody>
-            {visibleEmployees.map(emp => {
+            {filteredEmployees.map(emp => {
               const { present, absent } = empStats[emp] ?? { present: 0, absent: 0 };
               return (
                 <tr key={emp} style={styles.tr}>
-                  <td style={{ ...styles.td, ...styles.empCol, position: "sticky", left: 0, zIndex: 1, background: "#1a1a2e" }}>
+                  <td style={{ ...styles.td, ...styles.empCol, position: "sticky", left: 0, zIndex: 1, background: "#ffffff" }}>
                     <div style={styles.empName}>
                       <div style={{ ...styles.avatar, background: stringToColor(emp) }}>
                         {emp.split(" ").map(n => n[0]).join("")}
@@ -202,11 +239,12 @@ export default function ScrumTracker({ onSwitchView }) {
                         key={d}
                         style={{
                           ...styles.td, ...styles.dayCol,
-                          background: cfg ? cfg.bg : isWeekend(d) ? "#252540" : "transparent",
-                          cursor: "pointer",
+                          background: cfg ? cfg.bg : isWeekend(d) ? "#f8f8f8" : "transparent",
+                          cursor: isViewOnly ? "default" : "pointer",
                           outline: isSelected ? "1px solid #f59e0b" : "none",
                         }}
                         onClick={e => {
+                          if (isViewOnly) return;
                           if (isSelected) { setSelectedCell(null); return; }
                           const rect = e.currentTarget.getBoundingClientRect();
                           const x = rect.left + rect.width / 2;
@@ -226,9 +264,9 @@ export default function ScrumTracker({ onSwitchView }) {
                     );
                   })}
                   <td style={{ ...styles.td, minWidth: 80, textAlign: "center" }}>
-                    <span style={{ color: "#4ade80", fontWeight: 700, fontSize: 11 }}>{present}</span>
+                    <span style={{ color: "#28a745", fontWeight: 700, fontSize: 11 }}>{present}</span>
                     <span style={{ color: "#555", fontSize: 11 }}> / </span>
-                    <span style={{ color: "#f87171", fontWeight: 700, fontSize: 11 }}>{absent}</span>
+                    <span style={{ color: "#dc3545", fontWeight: 700, fontSize: 11 }}>{absent}</span>
                   </td>
                 </tr>
               );
@@ -266,11 +304,11 @@ function ScrumPicker({ x, y, flipUp, onSelect, onClear, current }) {
         bottom: flipUp ? window.innerHeight - y : "auto",
         transform: "translateX(-50%)",
         zIndex: 1000,
-        background: "#252540",
-        border: "1px solid #3a3a5c",
+        background: "#ffffff",
+        border: "1px solid #e0e0e0",
         borderRadius: 8,
         minWidth: 130,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
         overflow: "hidden",
       }}
       onMouseDown={e => e.stopPropagation()}
@@ -281,7 +319,7 @@ function ScrumPicker({ x, y, flipUp, onSelect, onClear, current }) {
           key={k}
           style={{
             display: "block", width: "100%", padding: "8px 14px", textAlign: "left",
-            border: "none", borderBottom: "1px solid #2e2e4e", cursor: "pointer",
+            border: "none", borderBottom: "1px solid #f0f0f0", cursor: "pointer",
             fontSize: 11, background: k === current ? v.bg : "transparent", color: v.text,
             fontWeight: k === current ? 700 : 400,
           }}
@@ -295,7 +333,7 @@ function ScrumPicker({ x, y, flipUp, onSelect, onClear, current }) {
           style={{
             display: "block", width: "100%", padding: "8px 14px", textAlign: "left",
             border: "none", cursor: "pointer", fontSize: 11,
-            background: "transparent", color: "#7a7a9a",
+            background: "transparent", color: "#666",
           }}
           onClick={onClear}
         >
@@ -308,7 +346,7 @@ function ScrumPicker({ x, y, flipUp, onSelect, onClear, current }) {
 
 const styles = {
   root: {
-    minHeight: "100vh", background: "#1a1a2e", color: "#e5e5e5",
+    minHeight: "100vh", background: "#ffffff", color: "#1a1a1a",
     fontFamily: "'DM Mono', 'Fira Mono', 'Courier New', monospace",
     padding: "24px 20px", position: "relative", overflow: "hidden",
   },
@@ -325,52 +363,56 @@ const styles = {
     display: "flex", justifyContent: "space-between", alignItems: "flex-start",
     marginBottom: 20, flexWrap: "wrap", gap: 16, position: "relative", zIndex: 1,
   },
-  headerTag: { fontSize: 10, letterSpacing: 3, color: "#7a7a9a", marginBottom: 4, textTransform: "uppercase" },
-  title: { fontSize: 28, fontWeight: 700, color: "#f0f0ff", letterSpacing: -0.5 },
+  headerTag: { fontSize: 10, letterSpacing: 3, color: "#888", marginBottom: 4, textTransform: "uppercase" },
+  title: { fontSize: 28, fontWeight: 700, color: "#1a1a1a", letterSpacing: -0.5 },
   statsRow: { display: "flex", gap: 10, flexWrap: "wrap" },
   statCard: {
-    background: "#252540", border: "1px solid #3a3a5c", borderRadius: 8,
+    background: "#f8f8f8", border: "1px solid #e0e0e0", borderRadius: 8,
     padding: "10px 18px", textAlign: "center", minWidth: 70,
   },
   statVal: { fontSize: 22, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: "#7a7a9a", marginTop: 2, letterSpacing: 1 },
+  statLabel: { fontSize: 10, color: "#666", marginTop: 2, letterSpacing: 1 },
   controls: {
     display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap",
     marginBottom: 14, position: "relative", zIndex: 1,
   },
   monthNav: {
-    display: "flex", alignItems: "center", gap: 8, background: "#252540",
-    border: "1px solid #3a3a5c", borderRadius: 8, padding: "4px 8px",
+    display: "flex", alignItems: "center", gap: 8, background: "#f8f8f8",
+    border: "1px solid #e0e0e0", borderRadius: 8, padding: "4px 8px",
   },
-  navBtn: { background: "none", border: "none", color: "#9a9ab8", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 4px" },
-  monthLabel: { fontSize: 13, fontWeight: 600, color: "#ddd", minWidth: 100, textAlign: "center" },
+  navBtn: { background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 4px" },
+  monthLabel: { fontSize: 13, fontWeight: 600, color: "#333", minWidth: 100, textAlign: "center" },
   select: {
-    background: "#252540", border: "1px solid #3a3a5c", borderRadius: 8,
-    color: "#ddd", padding: "6px 12px", fontSize: 12, cursor: "pointer", outline: "none",
+    background: "#f8f8f8", border: "1px solid #e0e0e0", borderRadius: 8,
+    color: "#333", padding: "6px 12px", fontSize: 12, cursor: "pointer", outline: "none",
+  },
+  searchInput: {
+    background: "#f8f8f8", border: "1px solid #e0e0e0", borderRadius: 8,
+    color: "#333", padding: "6px 12px", fontSize: 12, outline: "none", minWidth: 180,
   },
   switchBtn: {
-    background: "none", border: "1px solid #3a3a5c", borderRadius: 6,
-    color: "#7a7a9a", padding: "6px 14px", fontSize: 12, cursor: "pointer", marginLeft: 8,
+    background: "none", border: "1px solid #e0e0e0", borderRadius: 6,
+    color: "#666", padding: "6px 14px", fontSize: 12, cursor: "pointer", marginLeft: 8,
   },
   legend: {
     display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
     marginBottom: 14, position: "relative", zIndex: 1,
   },
   legendItem: { fontSize: 10, padding: "2px 10px", borderRadius: 4, fontWeight: 600 },
-  gridWrap: { overflowX: "auto", border: "1px solid #3a3a5c", borderRadius: 10, position: "relative", zIndex: 1, width: "100%" },
+  gridWrap: { overflowX: "auto", border: "1px solid #e0e0e0", borderRadius: 10, position: "relative", zIndex: 1, width: "100%" },
   table: { borderCollapse: "collapse", width: "auto" },
   th: {
-    padding: "8px 4px", textAlign: "center", fontSize: 11, color: "#8a8aaa",
-    fontWeight: 500, borderBottom: "1px solid #3a3a5c", borderRight: "1px solid #2e2e4e",
-    background: "#20203a",
+    padding: "8px 4px", textAlign: "center", fontSize: 11, color: "#666",
+    fontWeight: 500, borderBottom: "1px solid #e0e0e0", borderRight: "1px solid #f0f0f0",
+    background: "#fafafa",
   },
   empCol: { minWidth: 130, textAlign: "left", padding: "8px 12px" },
   dayCol: { width: 32, minWidth: 32, maxWidth: 32 },
-  tr: { borderBottom: "1px solid #2e2e4e" },
-  td: { padding: "5px 2px", textAlign: "center", fontSize: 10, borderRight: "1px solid #2e2e4e", position: "relative" },
-  empName: { display: "flex", alignItems: "center", gap: 8, color: "#ccc" },
+  tr: { borderBottom: "1px solid #f0f0f0" },
+  td: { padding: "5px 2px", textAlign: "center", fontSize: 10, borderRight: "1px solid #f0f0f0", position: "relative" },
+  empName: { display: "flex", alignItems: "center", gap: 8, color: "#333" },
   avatar: {
     width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center",
-    justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#aaa", flexShrink: 0,
+    justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#fff", flexShrink: 0,
   },
 };
