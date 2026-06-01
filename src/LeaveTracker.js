@@ -39,12 +39,15 @@ export default function LeaveTracker({ onSwitchView, isViewOnly = false, onLogou
   const [newEmpName, setNewEmpName] = useState("");
   const [empError, setEmpError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [waking, setWaking] = useState(false);
 
   useEffect(() => {
+    const timer = setTimeout(() => setWaking(true), 3000);
     fetch(`${API}/employees`)
       .then(r => r.json())
-      .then(setEmployees)
+      .then(data => { setEmployees(data); clearTimeout(timer); setWaking(false); })
       .catch(console.error);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -238,6 +241,11 @@ export default function LeaveTracker({ onSwitchView, isViewOnly = false, onLogou
       </div>
 
       {loading && <div style={styles.loadingBar} />}
+      {waking && (
+        <div style={{ textAlign: "center", padding: "40px 0", color: "#888", fontSize: 12 }}>
+          ⏳ Server is waking up, please wait up to 60 seconds...
+        </div>
+      )}
 
       {/* Grid */}
       <div style={styles.gridWrap}>
